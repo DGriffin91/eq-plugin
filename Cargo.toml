@@ -1,0 +1,26 @@
+[package]
+name = "eq-plugin"
+version = "0.1.0"
+authors = ["DGriffin <github@dgdigital.net>"]
+edition = "2018"
+license = "GPLv3"
+
+[lib]
+name = "eq_plugin"
+crate-type = ["cdylib"]
+
+[dependencies]
+baseview = {git = "https://github.com/RustAudio/baseview", branch = "master"}
+dirs = "3"
+log = "0.4"
+log-panics = "2"
+simplelog = "0.8"
+raw-window-handle = "0.3"
+vst = "0.2"
+rtrb = "0.1.1"
+imgui-baseview = {git = "https://github.com/BillyDM/imgui-baseview", branch = "main"}
+imgui = "0.7"
+imgui-knobs = {git = "https://github.com/DGriffin91/imgui-rs-knobs", branch = "main"}
+ringbuf = "0.2"
+biquad = "0.4"
+num-complex = "0.4"
