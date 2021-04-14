@@ -4,7 +4,7 @@ set -e
 
 # Settings
 
-NAME="CompressorPlugin"
+NAME="EQPlugin"
 
 # Script
 
@@ -13,7 +13,7 @@ MOVE_TO="/Library/Audio/Plug-Ins/VST/$VST_NAME"
 TMP_DIR="tmp"
 
 cargo build --release
-./scripts/osx_vst_bundler.sh "$NAME" ./target/release/compressor_plugin.dylib
+./scripts/osx_vst_bundler.sh "$NAME" ./target/release/eq_plugin.dylib
 
 if [ -d "$MOVE_TO" ]; then
     rm -r "$MOVE_TO"
