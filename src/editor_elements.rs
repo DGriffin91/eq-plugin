@@ -10,14 +10,11 @@ use crate::{
 
 pub fn map_to_freq(n: f32) -> f32 {
     //0-1 to freq
-    //n.powf(4.0).to_range(20.0, 20000.0)
     let n = ((1000.0f32).powf(n) - 1.0) / (1000.0f32 - 1.0);
     n.to_range(20.0, 20000.0)
 }
 
 pub fn reverse_map_to_freq(n: f32) -> f32 {
-    //(n / 20.0).powf(0.1) - 1.0
-    //(n.from_range(20.0, 20000.0)).powf(0.25);
     let n = n.from_range(20.0, 20000.0);
     ((1000.0f32 - 1.0) * n + 1.0).ln() / 1000.0f32.ln()
 }
@@ -119,7 +116,8 @@ pub fn coeffs_from_filter(
     let u_slope = slope as u32;
     let slope_gain = ((slope * 0.5) as u32) as f64;
     let partial_gain = gain / slope_gain;
-    let q_offset = bw_value.bw_to_q() * biquad::Q_BUTTERWORTH_F64;
+    let q_value = bw_value.bw_to_q(freq, sample_rate);
+    let q_offset = q_value * biquad::Q_BUTTERWORTH_F64;
 
     match kind {
         FilterKind::Bell => {
@@ -127,7 +125,7 @@ pub fn coeffs_from_filter(
                 Type::PeakingEQ(gain),
                 sample_rate.hz(),
                 freq.hz(),
-                bw_value.bw_to_q(),
+                q_value,
             )
             .unwrap()]
         }
@@ -200,7 +198,7 @@ pub fn coeffs_from_filter(
                 Type::Notch,
                 sample_rate.hz(),
                 freq.hz(),
-                (bw_value).bw_to_q(),
+                q_value,
             )
             .unwrap()]
         }
@@ -275,7 +273,7 @@ pub fn coeffs_from_filter(
                 Type::AllPass,
                 sample_rate.hz(),
                 freq.hz(),
-                (bw_value).bw_to_q(),
+                q_value,
             )
             .unwrap()]
         }

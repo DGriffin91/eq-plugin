@@ -13,7 +13,7 @@ pub trait Units<T> {
     fn db_to_lin(self) -> T;
     fn lin_to_db(self) -> T;
     fn sign(self, b: T) -> T;
-    fn bw_to_q(self) -> T;
+    fn bw_to_q(self, f0: T, fs: T) -> T;
 }
 
 impl Units<f64> for f64 {
@@ -36,7 +36,12 @@ impl Units<f64> for f64 {
             self
         }
     }
-    fn bw_to_q(self) -> f64 {
+    fn bw_to_q(self, _f0: f64, _fs: f64) -> f64 {
+        // Tried to compensate for q squashing at high frequencies
+        // but seems too extreme at the very top
+        //let w0 = 2.0 * PI * f0 / fs;
+        //1.0 / (2.0 * (LN_2_F64 / 2.0 * self * w0 / (w0).sin()).sinh())
+
         1.0 / (2.0 * (LN_2_F64 / 2.0 * self).sinh())
     }
 }
@@ -62,7 +67,12 @@ impl Units<f32> for f32 {
             self
         }
     }
-    fn bw_to_q(self) -> f32 {
+    fn bw_to_q(self, _f0: f32, _fs: f32) -> f32 {
+        // Tried to compensate for q squashing at high frequencies
+        // but seems too extreme at the very top
+        //let w0 = 2.0 * std::f32::consts::PI * f0 / fs;
+        //1.0 / (2.0 * (LN_2_F32 / 2.0 * self * w0 / (w0).sin()).sinh())
+
         1.0 / (2.0 * (LN_2_F32 / 2.0 * self).sinh())
     }
 }

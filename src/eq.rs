@@ -153,7 +153,8 @@ impl FilterbandStereo {
 
         let partial_gain = gain / slope_gain;
 
-        let q_offset = bw_value.bw_to_q() * biquad::Q_BUTTERWORTH_F64;
+        let q_value = bw_value.bw_to_q(freq, sample_rate);
+        let q_offset = q_value * biquad::Q_BUTTERWORTH_F64;
 
         match self.kind {
             FilterKind::Bell => {
@@ -161,7 +162,7 @@ impl FilterbandStereo {
                     Type::PeakingEQ(gain),
                     sample_rate,
                     freq,
-                    bw_value.bw_to_q(),
+                    q_value,
                 )
                 .unwrap();
                 self.svf_l[0].update_coefficients(self.coeffs_a[0]);
@@ -224,13 +225,9 @@ impl FilterbandStereo {
                 }
             }
             FilterKind::Notch => {
-                self.coeffs_a[0] = SVFCoefficients::<f64>::from_params(
-                    Type::Notch,
-                    sample_rate,
-                    freq,
-                    (bw_value).bw_to_q(),
-                )
-                .unwrap();
+                self.coeffs_a[0] =
+                    SVFCoefficients::<f64>::from_params(Type::Notch, sample_rate, freq, q_value)
+                        .unwrap();
                 self.svf_l[0].update_coefficients(self.coeffs_a[0]);
                 self.svf_r[0].update_coefficients(self.coeffs_a[0]);
             }
@@ -295,13 +292,9 @@ impl FilterbandStereo {
                 }
             }
             FilterKind::AllPass => {
-                self.coeffs_a[0] = SVFCoefficients::<f64>::from_params(
-                    Type::AllPass,
-                    sample_rate,
-                    freq,
-                    (bw_value).bw_to_q(),
-                )
-                .unwrap();
+                self.coeffs_a[0] =
+                    SVFCoefficients::<f64>::from_params(Type::AllPass, sample_rate, freq, q_value)
+                        .unwrap();
                 self.svf_l[0].update_coefficients(self.coeffs_a[0]);
                 self.svf_r[0].update_coefficients(self.coeffs_a[0]);
             }
