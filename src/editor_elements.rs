@@ -10,13 +10,16 @@ use crate::{
 
 pub fn map_to_freq(n: f32) -> f32 {
     //0-1 to freq
-    //(1.0 + n).powf(10.0) * 20.0
-    n.powf(4.0).to_range(20.0, 20000.0)
+    //n.powf(4.0).to_range(20.0, 20000.0)
+    let n = ((1000.0f32).powf(n) - 1.0) / (1000.0f32 - 1.0);
+    n.to_range(20.0, 20000.0)
 }
 
 pub fn reverse_map_to_freq(n: f32) -> f32 {
     //(n / 20.0).powf(0.1) - 1.0
-    (n.from_range(20.0, 20000.0)).powf(0.25)
+    //(n.from_range(20.0, 20000.0)).powf(0.25);
+    let n = n.from_range(20.0, 20000.0);
+    ((1000.0f32 - 1.0) * n + 1.0).ln() / 1000.0f32.ln()
 }
 
 fn draw_hz_line(ui: &Ui, freq: f32, graph_width: f32, graph_height: f32) {
