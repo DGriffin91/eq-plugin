@@ -4,7 +4,7 @@ use imgui_knobs::*;
 
 use crate::{atomic_f64::AtomicF64, editor_elements::*, eq::FilterKind};
 
-use crate::units::Units;
+use crate::units::{map_to_freq, Units};
 use imgui_baseview::{HiDpiMode, ImguiWindow, RenderSettings, Settings};
 
 use crate::eq_effect_parameters::EQEffectParameters;

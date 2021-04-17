@@ -5,19 +5,8 @@ use num_complex::Complex;
 
 use crate::{
     eq::FilterKind,
-    units::{butterworth_cascade_q, Units},
+    units::{butterworth_cascade_q, reverse_map_to_freq, Units},
 };
-
-pub fn map_to_freq(n: f32) -> f32 {
-    //0-1 to freq
-    let n = ((1000.0f32).powf(n) - 1.0) / (1000.0f32 - 1.0);
-    n.to_range(20.0, 20000.0)
-}
-
-pub fn reverse_map_to_freq(n: f32) -> f32 {
-    let n = n.from_range(20.0, 20000.0);
-    ((1000.0f32 - 1.0) * n + 1.0).ln() / 1000.0f32.ln()
-}
 
 fn draw_hz_line(ui: &Ui, freq: f32, graph_width: f32, graph_height: f32) {
     let [cx, cy] = ui.cursor_screen_pos();

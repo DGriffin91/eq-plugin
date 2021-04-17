@@ -77,6 +77,17 @@ impl Units<f32> for f32 {
     }
 }
 
+pub fn map_to_freq(n: f32) -> f32 {
+    //0-1 to freq
+    let n = ((1000.0f32).powf(n) - 1.0) / (1000.0f32 - 1.0);
+    n.to_range(20.0, 20000.0)
+}
+
+pub fn reverse_map_to_freq(n: f32) -> f32 {
+    let n = n.from_range(20.0, 20000.0);
+    ((1000.0f32 - 1.0) * n + 1.0).ln() / 1000.0f32.ln()
+}
+
 pub fn butterworth_cascade_q(filter_order: u32, pole: u32) -> f64 {
     //let pairs = filter_order >> 1;
     let mut pole = pole;
