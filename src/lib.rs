@@ -145,17 +145,6 @@ impl Plugin for EQPlugin {
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer<f32>) {
-        for (i, band) in self.params.bands.iter().enumerate() {
-            self.filter_bands[i].update(
-                band.get_kind(),
-                band.freq.get(),
-                band.gain.get(),
-                band.bw.get(),
-                band.get_slope(),
-                self.sample_rate.get(),
-            );
-        }
-
         self.time
             .set(self.time.get() + (1.0 / self.sample_rate.get()) * self.block_size as f64);
 
@@ -167,6 +156,17 @@ impl Plugin for EQPlugin {
         let outputs_stereo = outputs_left[0].iter_mut().zip(outputs_right[0].iter_mut());
 
         for (input_pair, output_pair) in inputs_stereo.zip(outputs_stereo) {
+            for (i, band) in self.params.bands.iter().enumerate() {
+                self.filter_bands[i].update(
+                    band.get_kind(),
+                    band.freq.get(),
+                    band.gain.get(),
+                    band.bw.get(),
+                    band.get_slope(),
+                    self.sample_rate.get(),
+                );
+            }
+
             let (input_l, input_r) = input_pair;
             let (output_l, output_r) = output_pair;
 

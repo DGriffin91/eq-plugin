@@ -236,7 +236,7 @@ impl Smooth {
         Smooth {
             target: n,
             n,
-            attack: 0.0002,
+            attack: 0.1,
         }
     }
 
