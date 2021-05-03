@@ -197,7 +197,7 @@ impl Editor for EQPluginEditor {
 
                         for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
                             let f_hz = map_to_freq((i as f32) / graph_width) as f64;
-                            let y = new_band.coeffs.get_amplitude(f_hz);
+                            let y = new_band.get_amplitude(f_hz);
                             *graph_y += -(y.lin_to_db()) as f32;
                         }
                     }

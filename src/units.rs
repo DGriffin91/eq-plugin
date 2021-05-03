@@ -225,6 +225,7 @@ impl<T> ConsumerDump<T> {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct Smooth {
     pub target: f64,
     pub n: f64,
