@@ -196,16 +196,9 @@ impl Editor for EQPluginEditor {
                         ui.text(&ImString::new(format!("{}", band.gain.get())));
 
                         for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
-                            for (band_a, band_b) in
-                                new_band.coeffs_a.iter().zip(new_band.coeffs_b.iter())
-                            {
-                                let f_hz = map_to_freq((i as f32) / graph_width) as f64;
-                                let mut y = 1.0f64;
-                                y *= band_a.get_amplitude(f_hz);
-                                y *= band_b.get_amplitude(f_hz);
-
-                                *graph_y += -(y.lin_to_db()) as f32;
-                            }
+                            let f_hz = map_to_freq((i as f32) / graph_width) as f64;
+                            let y = new_band.coeffs.get_amplitude(f_hz);
+                            *graph_y += -(y.lin_to_db()) as f32;
                         }
                     }
 
