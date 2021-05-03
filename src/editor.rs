@@ -1,8 +1,7 @@
-use crate::editor_elements::coeffs_from_filter;
 use imgui::*;
 use imgui_knobs::*;
 
-use crate::{atomic_f64::AtomicF64, editor_elements::*, eq::FilterKind};
+use crate::{atomic_f64::AtomicF64, editor_elements::*, eq::FilterbandStereo};
 
 use crate::units::{map_to_freq, Units};
 use imgui_baseview::{HiDpiMode, ImguiWindow, RenderSettings, Settings};
@@ -182,27 +181,31 @@ impl Editor for EQPluginEditor {
                     let mut graph_y_values = vec![0.0f32; graph_width as usize];
 
                     for band in state.params.bands.iter() {
-                        let kind = band.get_kind();
-                        let freq = band.freq.get();
-                        let slope = band.get_slope();
-                        let bw = band.bw.get();
-                        let gain = band.gain.get();
-                        let coeffs_set =
-                            coeffs_from_filter(kind, freq, slope, bw, gain, sample_rate);
+                        //TODO reuse coeffs from DSP
+                        let mut new_band = FilterbandStereo::new(sample_rate);
+                        new_band.update(
+                            band.get_kind(),
+                            band.freq.get(),
+                            band.gain.get(),
+                            band.bw.get(),
+                            band.get_slope(),
+                            sample_rate,
+                            true,
+                        );
+
+                        ui.text(&ImString::new(format!("{}", band.gain.get())));
+
                         for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
-                            let f_hz = map_to_freq((i as f32) / graph_width) as f64;
-                            let mut y = 1.0f64;
-                            for coeffs in coeffs_set.iter() {
-                                y *= first_order_biquad_bode(f_hz, coeffs, sample_rate);
-                                if kind == FilterKind::Mesa {
-                                    let gain = ((gain / (slope * 2.0)) * 2.0).db_to_lin();
-                                    y *= gain;
-                                } else if kind == FilterKind::Tilt {
-                                    let gain = ((gain / (slope * 0.5)) * -1.0).db_to_lin();
-                                    y *= gain;
-                                }
+                            for (band_a, band_b) in
+                                new_band.coeffs_a.iter().zip(new_band.coeffs_b.iter())
+                            {
+                                let f_hz = map_to_freq((i as f32) / graph_width) as f64;
+                                let mut y = 1.0f64;
+                                y *= band_a.get_amplitude(f_hz);
+                                y *= band_b.get_amplitude(f_hz);
+
+                                *graph_y += -(y.lin_to_db()) as f32;
                             }
-                            *graph_y += -(y.lin_to_db()) as f32;
                         }
                     }
 

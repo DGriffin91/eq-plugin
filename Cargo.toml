@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 baseview = {git = "https://github.com/RustAudio/baseview", branch = "master"}
 dirs = "3"
 log = "0.4"
-log-panics = "2"
+log-panics = { version = "2", features = ["with-backtrace"] }
 simplelog = "0.8"
 raw-window-handle = "0.3"
 vst = "0.2"
@@ -24,3 +24,4 @@ imgui-knobs = {git = "https://github.com/DGriffin91/imgui-rs-knobs", branch = "m
 ringbuf = "0.2"
 biquad = "0.4"
 num-complex = "0.4"
+assert_no_alloc = { version = "1.1.0" } #, features = ["warn_debug"]

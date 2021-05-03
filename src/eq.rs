@@ -121,31 +121,42 @@ impl FilterbandStereo {
         in_bw_value: f64,
         slope: f64,
         sample_rate: f64,
+        immediate: bool,
     ) {
-        if kind == self.kind
-            && in_freq == self.freq.n
-            && in_gain == self.gain.n
-            && in_bw_value == self.bw_value.n
-            && slope == self.slope
-            && sample_rate == self.sample_rate
-        {
-            return;
+        let mut freq = 0.0;
+        let mut gain = 0.0;
+        let mut bw_value = 0.0;
+        if !immediate {
+            if kind == self.kind
+                && in_freq == self.freq.n
+                && in_gain == self.gain.n
+                && in_bw_value == self.bw_value.n
+                && slope == self.slope
+                && sample_rate == self.sample_rate
+            {
+                return;
+            }
+            self.freq.target = in_freq;
+            self.gain.target = in_gain;
+            self.bw_value.target = in_bw_value;
+            self.freq.step(sample_rate);
+            self.gain.step(sample_rate);
+            self.bw_value.step(sample_rate);
+            freq = self.freq.n;
+            gain = self.gain.n;
+            bw_value = self.bw_value.n;
+        } else {
+            freq = in_freq;
+            gain = in_gain;
+            bw_value = in_bw_value;
+            self.freq.n = in_freq;
+            self.gain.n = in_gain;
+            self.bw_value.n = in_bw_value;
         }
 
         self.kind = kind;
-        self.freq.target = in_freq;
-        self.gain.target = in_gain;
-        self.bw_value.target = in_bw_value;
         self.slope = slope;
         self.sample_rate = sample_rate;
-
-        self.freq.step(sample_rate);
-        self.gain.step(sample_rate);
-        self.bw_value.step(sample_rate);
-
-        let freq = self.freq.n;
-        let gain = self.gain.n;
-        let bw_value = self.bw_value.n;
 
         let u_slope = slope as u32;
 

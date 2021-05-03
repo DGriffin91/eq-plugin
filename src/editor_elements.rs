@@ -1,26 +1,22 @@
-use __core::f64::consts::TAU;
-use biquad::{Coefficients, ToHertz, Type};
 use imgui::*;
-use num_complex::Complex;
 
-use crate::{
-    eq::FilterKind,
-    units::{butterworth_cascade_q, reverse_map_to_freq, Units},
-};
+use crate::units::reverse_map_to_freq;
 
-fn draw_hz_line(ui: &Ui, freq: f32, graph_width: f32, graph_height: f32) {
+fn draw_hz_line(ui: &Ui, freq: f32, graph_width: f32, graph_height: f32, draw_text: bool) {
     let [cx, cy] = ui.cursor_screen_pos();
     let x = cx + reverse_map_to_freq(freq) * graph_width;
     ui.get_window_draw_list()
-        .add_line([x, cy], [x, cy - graph_height], [1.0, 1.0, 1.0, 0.1])
+        .add_line([x, cy], [x, cy - graph_height], [1.0, 1.0, 1.0, 0.2])
         .thickness(1.0)
         .build();
 
-    ui.get_window_draw_list().add_text(
-        [x, cy - graph_height],
-        ui.style_color(StyleColor::Text),
-        &ImString::new(format!("{}hz", freq as i32)),
-    );
+    if draw_text {
+        ui.get_window_draw_list().add_text(
+            [x, cy - graph_height],
+            ui.style_color(StyleColor::Text),
+            &ImString::new(format!("{}hz", freq as i32)),
+        );
+    }
 }
 
 fn draw_db_line(ui: &Ui, db: f32, graph_width: f32, graph_height: f32, db_px_step: f32) {
@@ -82,201 +78,22 @@ pub fn draw_eq_graph<F: Fn(usize) -> f32>(
     }
 
     for n in [
-        0, 10, 20, 30, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000, 20000,
+        20, 30, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000, 20000,
     ]
     .iter()
     {
-        draw_hz_line(ui, *n as f32, size[0], size[1]);
+        draw_hz_line(ui, *n as f32, size[0], size[1], true);
+    }
+
+    for n in [
+        40, 60, 70, 80, 90, 400, 600, 700, 800, 900, 4000, 6000, 7000, 8000, 9000,
+    ]
+    .iter()
+    {
+        draw_hz_line(ui, *n as f32, size[0], size[1], false);
     }
 
     for db in [-12.0, -6.0, 0.0, 6.0, 12.0].iter() {
         draw_db_line(ui, *db, size[0], size[1], db_px_step);
     }
-}
-
-pub fn coeffs_from_filter(
-    kind: FilterKind,
-    freq: f64,
-    slope: f64,
-    bw_value: f64,
-    gain: f64,
-    sample_rate: f64,
-) -> Vec<Coefficients<f64>> {
-    let u_slope = slope as u32;
-    let slope_gain = ((slope * 0.5) as u32) as f64;
-    let partial_gain = gain / slope_gain;
-    let q_value = bw_value.bw_to_q(freq, sample_rate);
-    let q_offset = q_value * biquad::Q_BUTTERWORTH_F64;
-
-    match kind {
-        FilterKind::Bell => {
-            vec![Coefficients::<f64>::from_params(
-                Type::PeakingEQ(gain),
-                sample_rate.hz(),
-                freq.hz(),
-                q_value,
-            )
-            .unwrap()]
-        }
-        FilterKind::LowPass => {
-            let mut coeffs_a = Vec::new();
-            for i in 0..(slope * 0.5) as usize {
-                let q_value = butterworth_cascade_q(u_slope, i as u32);
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::LowPass,
-                        sample_rate.hz(),
-                        freq.hz(),
-                        q_value * q_offset,
-                    )
-                    .unwrap(),
-                )
-            }
-            coeffs_a
-        }
-        FilterKind::HighPass => {
-            let mut coeffs_a = Vec::new();
-            for i in 0..(slope * 0.5) as usize {
-                let q_value = butterworth_cascade_q(u_slope, i as u32);
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::HighPass,
-                        sample_rate.hz(),
-                        freq.hz(),
-                        q_value * q_offset,
-                    )
-                    .unwrap(),
-                )
-            }
-            coeffs_a
-        }
-        FilterKind::LowShelf => {
-            let mut coeffs_a = Vec::new();
-            for i in 0..(slope * 0.5) as usize {
-                let q_value = butterworth_cascade_q(u_slope, i as u32);
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::LowShelf(partial_gain),
-                        sample_rate.hz(),
-                        freq.hz(),
-                        q_value * q_offset,
-                    )
-                    .unwrap(),
-                )
-            }
-            coeffs_a
-        }
-        FilterKind::HighShelf => {
-            let mut coeffs_a = Vec::new();
-            for i in 0..(slope * 0.5) as usize {
-                let q_value = butterworth_cascade_q(u_slope, i as u32);
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::HighShelf(partial_gain),
-                        sample_rate.hz(),
-                        freq.hz(),
-                        q_value * q_offset,
-                    )
-                    .unwrap(),
-                )
-            }
-            coeffs_a
-        }
-        FilterKind::Notch => {
-            vec![Coefficients::<f64>::from_params(
-                Type::Notch,
-                sample_rate.hz(),
-                freq.hz(),
-                q_value,
-            )
-            .unwrap()]
-        }
-        FilterKind::BandPass => {
-            let mut coeffs_a = Vec::new();
-            for i in 0..(slope * 0.5) as usize {
-                let q_value = butterworth_cascade_q(u_slope, i as u32);
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::HighPass,
-                        sample_rate.hz(),
-                        freq.hz(),
-                        q_value * q_offset,
-                    )
-                    .unwrap(),
-                );
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::LowPass,
-                        sample_rate.hz(),
-                        freq.hz(),
-                        q_value * q_offset,
-                    )
-                    .unwrap(),
-                );
-            }
-            coeffs_a
-        }
-        FilterKind::Tilt => {
-            let mut coeffs_a = Vec::new();
-            for i in 0..(slope * 0.5) as usize {
-                let q_value = butterworth_cascade_q(u_slope, i as u32);
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::HighShelf(partial_gain * 2.0),
-                        sample_rate.hz(),
-                        freq.hz(),
-                        q_value * q_offset,
-                    )
-                    .unwrap(),
-                )
-            }
-            coeffs_a
-        }
-        FilterKind::Mesa => {
-            let mut coeffs_a = Vec::new();
-            for i in 0..(slope * 0.5) as usize {
-                let q_value = butterworth_cascade_q(u_slope, i as u32);
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::LowShelf(-partial_gain),
-                        sample_rate.hz(),
-                        (freq / (bw_value + 0.5)).min(20000.0).max(20.0).hz(),
-                        q_value,
-                    )
-                    .unwrap(),
-                );
-                coeffs_a.push(
-                    Coefficients::<f64>::from_params(
-                        Type::HighShelf(-partial_gain),
-                        sample_rate.hz(),
-                        (freq * (bw_value + 0.5)).min(20000.0).max(20.0).hz(),
-                        q_value,
-                    )
-                    .unwrap(),
-                );
-            }
-            coeffs_a
-        }
-        FilterKind::AllPass => {
-            vec![Coefficients::<f64>::from_params(
-                Type::AllPass,
-                sample_rate.hz(),
-                freq.hz(),
-                q_value,
-            )
-            .unwrap()]
-        }
-    }
-}
-
-pub fn first_order_biquad_bode(f_hz: f64, coeffs: &Coefficients<f64>, sample_rate: f64) -> f64 {
-    let imag = Complex::new(0.0, 1.0);
-
-    let jw = (-TAU * f_hz * imag / sample_rate).exp();
-
-    let jw_sq = jw * jw;
-
-    let numerator = coeffs.b0 + (coeffs.b1 * jw) + (coeffs.b2 * jw_sq);
-    let denominator = (coeffs.a1 * jw) + (coeffs.a2 * jw_sq) + 1.0;
-    (numerator / denominator).norm()
 }

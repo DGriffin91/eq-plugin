@@ -10,9 +10,7 @@ Ideas:
         Initial done, maybe also do flat tilt
     Handles for moving only Vertical/Horizontal movement?
     Look at compensating for frequency warping
-    Interpolate to avoid zipper effects when automating
-        DONE - gain/hz/bw
-        still getting more noise than proQ try smoothing coeffs
+    DONE - Interpolate to avoid zipper effects when automating
     mid/side/left/right percentages
     text input
     Eventually fir filters?
@@ -20,6 +18,12 @@ Ideas:
     DONE - Raised cosine (2 shelf filters?)
     DONE - Look at svf https://cytomic.com/files/dsp/SvfLinearTrapOptimised2.pdf
 */
+
+use assert_no_alloc::*;
+
+#[cfg(debug_assertions)] // required when disable_release is set (default)
+#[global_allocator]
+static A: AllocDisabler = AllocDisabler;
 
 #[macro_use]
 extern crate vst;
@@ -100,7 +104,7 @@ fn setup_logging() {
         .set_time_to_local(true)
         .build();
 
-    let _ = ::simplelog::WriteLogger::init(simplelog::LevelFilter::Info, log_config, log_file);
+    let _ = ::simplelog::WriteLogger::init(simplelog::LevelFilter::max(), log_config, log_file);
 
     ::log_panics::init();
 
@@ -134,6 +138,7 @@ impl Plugin for EQPlugin {
 
     fn init(&mut self) {
         setup_logging();
+        //setup_logger();
     }
 
     fn get_editor(&mut self) -> Option<Box<dyn Editor>> {
@@ -145,43 +150,49 @@ impl Plugin for EQPlugin {
     }
 
     fn process(&mut self, buffer: &mut AudioBuffer<f32>) {
-        self.time
-            .set(self.time.get() + (1.0 / self.sample_rate.get()) * self.block_size as f64);
+        //let b: i32 = a.iter().sum();
+        //println!("{}", b);
+        assert_no_alloc(|| {
+            //println!("{}", vec![1.0][0]);
+            self.time
+                .set(self.time.get() + (1.0 / self.sample_rate.get()) * self.block_size as f64);
 
-        let (inputs, outputs) = buffer.split();
-        let (inputs_left, inputs_right) = inputs.split_at(1);
-        let (mut outputs_left, mut outputs_right) = outputs.split_at_mut(1);
+            let (inputs, outputs) = buffer.split();
+            let (inputs_left, inputs_right) = inputs.split_at(1);
+            let (mut outputs_left, mut outputs_right) = outputs.split_at_mut(1);
 
-        let inputs_stereo = inputs_left[0].iter().zip(inputs_right[0].iter());
-        let outputs_stereo = outputs_left[0].iter_mut().zip(outputs_right[0].iter_mut());
+            let inputs_stereo = inputs_left[0].iter().zip(inputs_right[0].iter());
+            let outputs_stereo = outputs_left[0].iter_mut().zip(outputs_right[0].iter_mut());
 
-        for (input_pair, output_pair) in inputs_stereo.zip(outputs_stereo) {
-            for (i, band) in self.params.bands.iter().enumerate() {
-                self.filter_bands[i].update(
-                    band.get_kind(),
-                    band.freq.get(),
-                    band.gain.get(),
-                    band.bw.get(),
-                    band.get_slope(),
-                    self.sample_rate.get(),
-                );
+            for (input_pair, output_pair) in inputs_stereo.zip(outputs_stereo) {
+                for (i, band) in self.params.bands.iter().enumerate() {
+                    self.filter_bands[i].update(
+                        band.get_kind(),
+                        band.freq.get(),
+                        band.gain.get(),
+                        band.bw.get(),
+                        band.get_slope(),
+                        self.sample_rate.get(),
+                        false,
+                    );
+                }
+
+                let (input_l, input_r) = input_pair;
+                let (output_l, output_r) = output_pair;
+
+                let mut l = *input_l as f64;
+                let mut r = *input_r as f64;
+
+                for i in 0..self.filter_bands.len() {
+                    let [l_n, r_n] = self.filter_bands[i].process(l, r);
+                    l = l_n;
+                    r = r_n;
+                }
+
+                *output_l = l as f32;
+                *output_r = r as f32;
             }
-
-            let (input_l, input_r) = input_pair;
-            let (output_l, output_r) = output_pair;
-
-            let mut l = *input_l as f64;
-            let mut r = *input_r as f64;
-
-            for i in 0..self.filter_bands.len() {
-                let [l_n, r_n] = self.filter_bands[i].process(l, r);
-                l = l_n;
-                r = r_n;
-            }
-
-            *output_l = l as f32;
-            *output_r = r as f32;
-        }
+        });
     }
 
     // Return the parameter object. This method can be omitted if the
