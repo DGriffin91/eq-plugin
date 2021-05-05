@@ -24,4 +24,4 @@ imgui-knobs = {git = "https://github.com/DGriffin91/imgui-rs-knobs", branch = "m
 ringbuf = "0.2"
 biquad = "0.4"
 num-complex = "0.4"
-assert_no_alloc = { version = "1.1.0" } #, features = ["warn_debug"]
+assert_no_alloc = { git = "https://github.com/DGriffin91/rust-assert-no-alloc", branch = "master"} #, features = ["warn_debug"]

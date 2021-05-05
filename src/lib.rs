@@ -153,7 +153,7 @@ impl Plugin for EQPlugin {
         //let b: i32 = a.iter().sum();
         //println!("{}", b);
         assert_no_alloc(|| {
-            //println!("{}", vec![1.0][0]);
+            println!("{}", vec![1.0][0]);
             self.time
                 .set(self.time.get() + (1.0 / self.sample_rate.get()) * self.block_size as f64);
 

@@ -197,12 +197,14 @@ impl Editor for EQPluginEditor {
 
                         for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
                             let f_hz = map_to_freq((i as f32) / graph_width) as f64;
-                            let y = new_band.get_amplitude(f_hz);
+                            let y = new_band.get_bode_sample(f_hz).norm();
                             *graph_y += -(y.lin_to_db()) as f32;
+                            //let y = new_band.get_bode_sample(f_hz).arg().to_degrees() * 0.2;
+                            //*graph_y += y as f32;
                         }
                     }
 
-                    //ui.text(&ImString::new(format!("{}", graph_y_values[100])));
+                    ui.text(&ImString::new(format!("phase {}", graph_y_values[100])));
                     draw_eq_graph(
                         ui,
                         im_str!("test"),
