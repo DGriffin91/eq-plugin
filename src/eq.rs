@@ -3,7 +3,7 @@ use core::fmt;
 use num_complex::Complex;
 
 use crate::{
-    svf::{SVFCoefficients, Type, SVF},
+    svf::{SVFCoefficients, Type, ZSample, SVF},
     units::{butterworth_cascade_q, Smooth, Units},
     FILTER_POLE_COUNT,
 };
@@ -63,12 +63,12 @@ impl SVFCoefficientsSet {
         }
     }
 
-    pub fn get_bode_sample(&self, f_hz: f64) -> Complex<f64> {
-        //Use y.norm() for amplitude and -y.arg().to_degrees() for phase. Add to combine phase.
-        let mut y = self.a[0].get_bode_sample(f_hz) * self.b[0].get_bode_sample(f_hz);
+    pub fn get_bode_sample(&self, z: ZSample) -> Complex<f64> {
+        //Use y.norm() for amplitude and y.arg().to_degrees() for phase. Add to combine phase.
+        let mut y = self.a[0].get_bode_sample(z) * self.b[0].get_bode_sample(z);
         for (band_a, band_b) in self.a.iter().skip(1).zip(self.b.iter().skip(1)) {
-            y *= band_a.get_bode_sample(f_hz);
-            y *= band_b.get_bode_sample(f_hz);
+            y *= band_a.get_bode_sample(z);
+            y *= band_b.get_bode_sample(z);
         }
         y
     }
@@ -107,9 +107,9 @@ impl FilterbandStereo {
         }
     }
 
-    pub fn get_bode_sample(&self, f_hz: f64) -> Complex<f64> {
-        //Use y.norm() for amplitude and -y.arg().to_degrees() for phase. Add to combine phase.
-        let mut y = self.coeffs.get_bode_sample(f_hz);
+    pub fn get_bode_sample(&self, z: ZSample) -> Complex<f64> {
+        //Use y.norm() for amplitude and y.arg().to_degrees() for phase. Add to combine phase.
+        let mut y = self.coeffs.get_bode_sample(z);
         if self.kind == FilterKind::Mesa {
             let gain = self.gain.n.db_to_lin();
             y *= gain;

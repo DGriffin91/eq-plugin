@@ -1,7 +1,7 @@
 use imgui::*;
 use imgui_knobs::*;
 
-use crate::{atomic_f64::AtomicF64, editor_elements::*, eq::FilterbandStereo};
+use crate::{atomic_f64::AtomicF64, editor_elements::*, eq::FilterbandStereo, svf::ZSample};
 
 use crate::units::{map_to_freq, Units};
 use imgui_baseview::{HiDpiMode, ImguiWindow, RenderSettings, Settings};
@@ -180,31 +180,32 @@ impl Editor for EQPluginEditor {
 
                     let mut graph_y_values = vec![0.0f32; graph_width as usize];
 
-                    for band in state.params.bands.iter() {
-                        //TODO reuse coeffs from DSP
-                        let mut new_band = FilterbandStereo::new(sample_rate);
-                        new_band.update(
-                            band.get_kind(),
-                            band.freq.get(),
-                            band.gain.get(),
-                            band.bw.get(),
-                            band.get_slope(),
-                            sample_rate,
-                            true,
-                        );
+                    for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
+                        let f_hz = map_to_freq((i as f32) / graph_width) as f64;
+                        let z = ZSample::new(f_hz, sample_rate);
+                        for band in state.params.bands.iter() {
+                            //TODO reuse coeffs from DSP
+                            let mut new_band = FilterbandStereo::new(sample_rate);
+                            new_band.update(
+                                band.get_kind(),
+                                band.freq.get(),
+                                band.gain.get(),
+                                band.bw.get(),
+                                band.get_slope(),
+                                sample_rate,
+                                true,
+                            );
 
-                        ui.text(&ImString::new(format!("{}", band.gain.get())));
+                            //ui.text(&ImString::new(format!("{}", band.gain.get())));
 
-                        for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
-                            let f_hz = map_to_freq((i as f32) / graph_width) as f64;
-                            let y = new_band.get_bode_sample(f_hz).norm();
+                            let y = new_band.get_bode_sample(z).norm();
                             *graph_y += -(y.lin_to_db()) as f32;
-                            //let y = new_band.get_bode_sample(f_hz).arg().to_degrees() * 0.2;
+                            //let y = -new_band.get_bode_sample(z).arg().to_degrees() * 0.2;
                             //*graph_y += y as f32;
                         }
                     }
 
-                    ui.text(&ImString::new(format!("phase {}", graph_y_values[100])));
+                    ui.text(&ImString::new(format!("phase {}", graph_y_values[1])));
                     draw_eq_graph(
                         ui,
                         im_str!("test"),
