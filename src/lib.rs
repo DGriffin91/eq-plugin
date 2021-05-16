@@ -30,16 +30,14 @@ extern crate vst;
 
 mod editor;
 pub mod editor_elements;
-pub mod eq;
 mod eq_effect_parameters;
 mod parameter;
-mod svf;
 pub mod units;
 
 mod atomic_f64;
 
+use audio_filters::filter_band::FilterbandStereo;
 use editor::{EQPluginEditor, EditorState};
-use eq::FilterbandStereo;
 use eq_effect_parameters::{BandParameters, EQEffectParameters};
 
 use vst::buffer::AudioBuffer;
@@ -173,7 +171,6 @@ impl Plugin for EQPlugin {
                         band.bw.get(),
                         band.get_slope(),
                         self.sample_rate.get(),
-                        false,
                     );
                 }
 

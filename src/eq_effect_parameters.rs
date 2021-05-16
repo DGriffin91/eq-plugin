@@ -1,6 +1,7 @@
+use audio_filters::filter_band::FilterKind;
+
 use crate::FILTER_POLE_COUNT;
 
-use super::eq::FilterKind;
 use super::parameter::Parameter;
 
 pub struct BandParameters {

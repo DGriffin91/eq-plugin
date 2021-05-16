@@ -1,7 +1,8 @@
+use audio_filters::{filter_band::FilterbandStereo, units::ZSample};
 use imgui::*;
 use imgui_knobs::*;
 
-use crate::{atomic_f64::AtomicF64, editor_elements::*, eq::FilterbandStereo, svf::ZSample};
+use crate::{atomic_f64::AtomicF64, editor_elements::*};
 
 use crate::units::{map_to_freq, Units};
 use imgui_baseview::{HiDpiMode, ImguiWindow, RenderSettings, Settings};
@@ -182,7 +183,7 @@ impl Editor for EQPluginEditor {
 
                     for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
                         let f_hz = map_to_freq((i as f32) / graph_width) as f64;
-                        let z = ZSample::new(f_hz, sample_rate);
+                        let z = ZSample::<f64>::new(f_hz, sample_rate);
                         for band in state.params.bands.iter() {
                             //TODO reuse coeffs from DSP
                             let mut new_band = FilterbandStereo::new(sample_rate);
@@ -193,7 +194,6 @@ impl Editor for EQPluginEditor {
                                 band.bw.get(),
                                 band.get_slope(),
                                 sample_rate,
-                                true,
                             );
 
                             //ui.text(&ImString::new(format!("{}", band.gain.get())));
