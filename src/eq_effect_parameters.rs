@@ -1,8 +1,42 @@
-use audio_filters::filter_band::FilterKind;
-
 use crate::FILTER_POLE_COUNT;
 
 use super::parameter::Parameter;
+
+use core::fmt;
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum BandType {
+    Bell,
+    LowPass,
+    HighPass,
+    LowShelf,
+    HighShelf,
+    Notch,
+    BandPass,
+    AllPass,
+}
+
+impl BandType {
+    pub fn from_u8(value: u8) -> BandType {
+        match value {
+            1 => BandType::Bell,
+            2 => BandType::LowPass,
+            3 => BandType::HighPass,
+            4 => BandType::LowShelf,
+            5 => BandType::HighShelf,
+            6 => BandType::Notch,
+            7 => BandType::BandPass,
+            8 => BandType::AllPass,
+            _ => BandType::LowPass,
+        }
+    }
+}
+
+impl fmt::Display for BandType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 pub struct BandParameters {
     pub kind: Parameter,
@@ -13,18 +47,12 @@ pub struct BandParameters {
 }
 
 impl BandParameters {
-    pub fn get_kind(&self) -> FilterKind {
-        return FilterKind::from_u32(self.kind.get() as u32);
+    pub fn get_kind(&self) -> BandType {
+        return BandType::from_u8(self.kind.get() as u8);
     }
 
     pub fn get_slope(&self) -> f64 {
-        let u_slope = self.slope.get() as u32;
-        if !u_slope % 2 == 0 {
-            //Only supporting even currently
-            (u_slope + 1) as f64
-        } else {
-            u_slope as f64
-        }
+        self.slope.get() as u8 as f64
     }
 }
 
@@ -76,7 +104,7 @@ fn new_band_pram_set(n: usize) -> BandParameters {
             1.0,
             1.0,
             10.0,
-            |x| format!("Type {:.2}", x),
+            |x| BandType::from_u8(x as u8).to_string(),
             |x| x,
             |x| x,
         ),
@@ -86,8 +114,8 @@ fn new_band_pram_set(n: usize) -> BandParameters {
             20.0,
             20000.0,
             |x| format!("hz {:.2}", x),
-            |x| x.powf(4.0),
-            |x| x.powf(0.25),
+            |x| x.powf(2.0),
+            |x| x.powf(0.5),
         ),
         gain: Parameter::new(
             &format!("Band {} dB", n),

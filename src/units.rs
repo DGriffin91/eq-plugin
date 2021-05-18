@@ -1,5 +1,3 @@
-use std::f64::consts::PI;
-
 use ringbuf::Consumer;
 
 const LN_2_F32: f32 = 0.6931471805599453; //(2.0f32).ln()
@@ -86,25 +84,6 @@ pub fn map_to_freq(n: f32) -> f32 {
 pub fn reverse_map_to_freq(n: f32) -> f32 {
     let n = n.from_range(20.0, 20000.0);
     ((1000.0f32 - 1.0) * n + 1.0).ln() / 1000.0f32.ln()
-}
-
-pub fn butterworth_cascade_q(filter_order: u32, pole: u32) -> f64 {
-    //let pairs = filter_order >> 1;
-    let mut pole = pole;
-    let pole_inc = PI / (filter_order as f64);
-    let even_order = filter_order % 2 == 0;
-
-    let first_angle = if even_order {
-        pole_inc * 0.5
-    } else {
-        if pole == 0 {
-            return 0.5; //Also needs to be 1 pole (not biquad)
-        }
-        pole -= 1;
-        pole_inc
-    };
-
-    1.0 / (2.0 * (first_angle + pole as f64 * pole_inc).cos())
 }
 
 pub struct VariableRingBuffer {
@@ -244,31 +223,5 @@ impl Smooth {
     pub fn step(&mut self, sample_rate: f64) {
         let factor = 1.0 / (sample_rate * self.attack);
         self.n += factor * (self.target - self.n);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_butterworth_cascade_q() {
-        assert_eq!(0.70710677, butterworth_cascade_q(2, 0));
-
-        assert_eq!(0.5, butterworth_cascade_q(3, 0));
-        assert_eq!(1.0000001, butterworth_cascade_q(3, 1));
-
-        assert_eq!(0.5411961, butterworth_cascade_q(4, 0));
-        assert_eq!(1.306563, butterworth_cascade_q(4, 1));
-
-        assert_eq!(0.5, butterworth_cascade_q(5, 0));
-        assert_eq!(0.618034, butterworth_cascade_q(5, 1));
-        assert_eq!(1.6180341, butterworth_cascade_q(5, 2));
-
-        assert_eq!(0.5176381, butterworth_cascade_q(6, 0));
-        assert_eq!(0.70710677, butterworth_cascade_q(6, 1));
-        assert_eq!(1.9318514, butterworth_cascade_q(6, 2));
-
-        dbg!(butterworth_cascade_q(4, 1));
     }
 }

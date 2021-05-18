@@ -20,7 +20,6 @@ vst = "0.2"
 rtrb = "0.1.1"
 imgui-baseview = {git = "https://github.com/BillyDM/imgui-baseview", rev = "3ea419f53727a39d36a0c2e0767f6873a23bf0e9" }
 imgui = "0.7"
-imgui-knobs = {git = "https://github.com/DGriffin91/imgui-rs-knobs", branch = "main"}
 ringbuf = "0.2"
 assert_no_alloc = { git = "https://github.com/DGriffin91/rust-assert-no-alloc", branch = "master"} #, features = ["warn_debug"]
-audio-filters = {git = "https://github.com/RustyDAW/audio-filters", branch = "main"}
+audio-filters = {path = "C:/dev/programming/rust/vst/audio-filters/audio-filters"}

@@ -44,6 +44,7 @@ impl Parameter {
     }
 
     pub fn set_normalized(&self, x: f64) {
+        let x = x.max(0.0).min(1.0);
         self.normalized_value.set(x);
         self.value
             .set((self.transform_func)(x).to_range(self.min, self.max));
@@ -54,6 +55,7 @@ impl Parameter {
     }
 
     pub fn set(&self, x: f64) {
+        let x = x.max(self.min).min(self.max);
         self.value.set(x);
         self.normalized_value
             .set((self.inv_transform_func)(x.from_range(self.min, self.max)));

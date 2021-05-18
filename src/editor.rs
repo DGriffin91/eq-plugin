@@ -1,10 +1,11 @@
-use audio_filters::{filter_band::FilterbandStereo, units::ZSample};
+use audio_filters::{filter_band::FilterBand, units::Units, units::ZSample};
 use imgui::*;
-use imgui_knobs::*;
 
-use crate::{atomic_f64::AtomicF64, editor_elements::*};
+use crate::{
+    atomic_f64::AtomicF64, editor_elements::*, eq_effect_parameters::BandType, update_proc,
+};
 
-use crate::units::{map_to_freq, Units};
+use crate::units::map_to_freq;
 use imgui_baseview::{HiDpiMode, ImguiWindow, RenderSettings, Settings};
 
 use crate::eq_effect_parameters::EQEffectParameters;
@@ -22,69 +23,30 @@ const WINDOW_HEIGHT: usize = 1300;
 const WINDOW_WIDTH_F: f32 = WINDOW_WIDTH as f32;
 const WINDOW_HEIGHT_F: f32 = WINDOW_HEIGHT as f32;
 
-const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
-//const BG_COLOR: [f32; 4] = [0.21 * 1.4, 0.11 * 1.7, 0.25 * 1.4, 1.0];
-//const BG_COLOR_TRANSP: [f32; 4] = [0.21 * 1.4, 0.11 * 1.7, 0.25 * 1.4, 0.0];
-//const GREEN: [f32; 4] = [0.23, 0.68, 0.23, 1.0];
-//const RED: [f32; 4] = [0.98, 0.02, 0.22, 1.0];
-const ORANGE: [f32; 4] = [1.0, 0.58, 0.0, 1.0];
-const ORANGE_HOVERED: [f32; 4] = [1.0, 0.68, 0.1, 1.0];
-//const WAVEFORM_LINES: [f32; 4] = [1.0, 1.0, 1.0, 0.2];
-//const TEXT: [f32; 4] = [1.0, 1.0, 1.0, 0.75];
-//const DB_LINES: [f32; 4] = [1.0, 1.0, 1.0, 0.15];
+fn input_float(ui: &Ui, parameter: &Parameter, i: usize) {
+    let knob_id = &ImString::new(format!("##{}_{}_KNOB_CONTORL_", parameter.get_name(), i));
+    let mut val = parameter.get();
 
-pub fn draw_knob(knob: &Knob, wiper_color: &ColorSet, track_color: &ColorSet) {
-    knob.draw_arc(
-        0.8,
-        0.20,
-        knob.angle_min,
-        knob.angle_max,
-        track_color,
-        16,
-        2,
-    );
-    if knob.t > 0.01 {
-        knob.draw_arc(0.8, 0.21, knob.angle_min, knob.angle, wiper_color, 16, 2);
-    }
-}
+    let nor_val = parameter.get_normalized();
 
-pub fn make_knob(
-    ui: &Ui,
-    parameter: &Parameter,
-    wiper_color: &ColorSet,
-    track_color: &ColorSet,
-    title_fix: f32,
-    n: usize,
-) {
-    let width = ui.text_line_height() * 4.75;
-    let w = ui.push_item_width(width);
-    let title = parameter.get_name();
-    let knob_id = &ImString::new(format!("##{}_{}_KNOB_CONTORL_", title, n));
-    knob_title(ui, &ImString::new(title.clone().to_uppercase()), width);
+    let speed = (((parameter.transform_func)(nor_val) / (parameter.inv_transform_func)(nor_val))
+        .abs()
+        * (parameter.max - parameter.min))
+        .max(0.00001) as f32;
     let cursor = ui.cursor_pos();
-    ui.set_cursor_pos([cursor[0], cursor[1] + 5.0]);
-    let mut val = parameter.get_normalized() as f32;
-    let knob = Knob::new(
-        ui,
-        knob_id,
-        &mut val,
-        0.0,
-        1.0,
-        parameter.get_normalized_default() as f32,
-        width * 0.5,
-        true,
-    );
-    let cursor = ui.cursor_pos();
-    ui.set_cursor_pos([cursor[0] + title_fix, cursor[1] - 10.0]);
-    knob_title(ui, &ImString::new(parameter.get_display()), width);
-
-    if knob.value_changed {
+    if Drag::new(knob_id)
+        .range(parameter.min..=parameter.max)
+        .speed(speed * 0.001)
+        .display_format(im_str!(""))
+        .build(ui, &mut val)
+    {
         //parameter.set(*knob.p_value)
-        parameter.set_normalized(*knob.p_value as f64)
+        parameter.set(val)
     }
-
-    w.pop(ui);
-    draw_knob(&knob, wiper_color, track_color);
+    let cursor2 = ui.cursor_pos();
+    ui.set_cursor_pos(cursor);
+    ui.text(&ImString::new(format!("{}", parameter.get_display())));
+    ui.set_cursor_pos(cursor2);
 }
 
 pub struct EditorState {
@@ -95,16 +57,6 @@ pub struct EditorState {
 pub struct EQPluginEditor {
     pub is_open: bool,
     pub state: Arc<EditorState>,
-}
-
-fn move_cursor(ui: &Ui, x: f32, y: f32) {
-    let cursor = ui.cursor_pos();
-    ui.set_cursor_pos([cursor[0] + x, cursor[1] + y])
-}
-
-fn floating_text(ui: &Ui, text: &str) {
-    ui.get_window_draw_list()
-        .add_text(ui.cursor_pos(), ui.style_color(StyleColor::Text), text)
 }
 
 impl Editor for EQPluginEditor {
@@ -175,26 +127,24 @@ impl Editor for EQPluginEditor {
 
                     let sample_rate = state.sample_rate.get();
 
-                    let highlight = ColorSet::new(ORANGE, ORANGE_HOVERED, ORANGE_HOVERED);
-                    let lowlight = ColorSet::from(BLACK);
                     let params = &state.params;
 
                     let mut graph_y_values = vec![0.0f32; graph_width as usize];
 
                     for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
                         let f_hz = map_to_freq((i as f32) / graph_width) as f64;
-                        let z = ZSample::<f64>::new(f_hz, sample_rate);
+                        let z = ZSample::<f32>::new(f_hz as f32, sample_rate as f32);
                         for band in state.params.bands.iter() {
                             //TODO reuse coeffs from DSP
-                            let mut new_band = FilterbandStereo::new(sample_rate);
-                            new_band.update(
-                                band.get_kind(),
-                                band.freq.get(),
-                                band.gain.get(),
-                                band.bw.get(),
-                                band.get_slope(),
-                                sample_rate,
-                            );
+                            let mut new_band = FilterBand::new(sample_rate as f32);
+
+                            let f0 = band.freq.get() as f32;
+                            let gain = band.gain.get() as f32;
+                            let bw = band.bw.get() as f32;
+                            let slope = band.get_slope() as f32;
+                            let fs = sample_rate as f32;
+
+                            update_proc(band.get_kind(), &mut new_band, f0, gain, bw, slope, fs);
 
                             //ui.text(&ImString::new(format!("{}", band.gain.get())));
 
@@ -205,7 +155,6 @@ impl Editor for EQPluginEditor {
                         }
                     }
 
-                    ui.text(&ImString::new(format!("phase {}", graph_y_values[1])));
                     draw_eq_graph(
                         ui,
                         im_str!("test"),
@@ -216,33 +165,59 @@ impl Editor for EQPluginEditor {
                         |i| graph_y_values[i],
                     );
 
-                    ui.columns(6, im_str!("cols"), false);
+                    ui.columns(4, im_str!("cols"), false);
                     for (i, band) in params.bands.iter().enumerate() {
-                        ui.text(&ImString::new(band.get_kind().to_string()));
-                        make_knob(ui, &band.kind, &highlight, &lowlight, 0.0, i);
-                        ui.next_column();
-                        make_knob(ui, &band.freq, &highlight, &lowlight, 0.0, i);
-                        ui.next_column();
-                        make_knob(ui, &band.gain, &highlight, &lowlight, 0.0, i);
-                        ui.next_column();
-                        make_knob(ui, &band.bw, &highlight, &lowlight, 0.0, i);
-                        ui.next_column();
-                        make_knob(ui, &band.slope, &highlight, &lowlight, 0.0, i);
-                        ui.next_column();
-                        let slope = band.get_slope() as i32;
-                        for i in (2..=16).step_by(2) {
-                            if ui.radio_button_bool(
-                                &ImString::new(format!("{}dB", i * 6)),
-                                slope == i,
-                            ) {
-                                band.slope.set(i as f64);
-                                break;
-                            }
+                        let popup_str = &ImString::new(format!("band_kind_popup##{}", i));
+                        if ui.button(
+                            &ImString::new(format!("{}##_popupbtn{}", band.kind.get_display(), i)),
+                            [0.0, 0.0],
+                        ) {
+                            ui.open_popup(popup_str);
                         }
+                        ui.popup(popup_str, || {
+                            let kind = band.kind.get() as i32;
+                            for j in 1..9 {
+                                if ui.radio_button_bool(
+                                    &ImString::new(format!(
+                                        "{}",
+                                        BandType::from_u8(j as u8).to_string()
+                                    )),
+                                    kind == j,
+                                ) {
+                                    band.kind.set(j as f64);
+                                    ui.close_current_popup();
+                                    break;
+                                }
+                            }
+                        });
+                        //input_float(&ui, &band.kind, i);
+                        input_float(&ui, &band.freq, i);
+                        input_float(&ui, &band.gain, i);
+                        input_float(&ui, &band.bw, i);
+                        input_float(&ui, &band.slope, i);
+                        let popup_str = &ImString::new(format!("db/oct##_popupbtn{}", i));
+                        if ui.button(
+                            &ImString::new(format!("{}dB/oct", band.slope.get() as u32 * 6)),
+                            [0.0, 0.0],
+                        ) {
+                            ui.open_popup(popup_str);
+                        }
+                        ui.popup(popup_str, || {
+                            let slope = band.get_slope() as i32;
+                            for j in 1..=16 {
+                                if ui.radio_button_bool(
+                                    &ImString::new(format!("{}dB/oct", j * 6)),
+                                    slope == j,
+                                ) {
+                                    band.slope.set(j as f64);
+                                    ui.close_current_popup();
+                                    break;
+                                }
+                            }
+                        });
                         ui.next_column();
                     }
                 });
-                //ui.show_demo_window(run);
             },
         );
 

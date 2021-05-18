@@ -36,9 +36,10 @@ pub mod units;
 
 mod atomic_f64;
 
-use audio_filters::filter_band::FilterbandStereo;
+use audio_filters::filter_band::FilterBand;
+
 use editor::{EQPluginEditor, EditorState};
-use eq_effect_parameters::{BandParameters, EQEffectParameters};
+use eq_effect_parameters::{BandParameters, BandType, EQEffectParameters};
 
 use vst::buffer::AudioBuffer;
 use vst::editor::Editor;
@@ -51,6 +52,27 @@ use atomic_f64::AtomicF64;
 const FILTER_COUNT: usize = 4;
 const FILTER_POLE_COUNT: usize = 16;
 
+fn update_proc<T: audio_filters::units::FP>(
+    kind: BandType,
+    proc_band: &mut FilterBand<T>,
+    f0: T,
+    gain: T,
+    bw: T,
+    slope: T,
+    fs: T,
+) {
+    match kind {
+        eq_effect_parameters::BandType::Bell => proc_band.bell(f0, gain, bw, fs),
+        eq_effect_parameters::BandType::LowPass => proc_band.lowpass(f0, bw, slope, fs),
+        eq_effect_parameters::BandType::HighPass => proc_band.highpass(f0, bw, slope, fs),
+        eq_effect_parameters::BandType::LowShelf => proc_band.lowshelf(f0, gain, bw, slope, fs),
+        eq_effect_parameters::BandType::HighShelf => proc_band.highshelf(f0, gain, bw, slope, fs),
+        eq_effect_parameters::BandType::Notch => proc_band.notch(f0, gain, bw, fs),
+        eq_effect_parameters::BandType::BandPass => proc_band.bandpass(f0, gain, bw, fs),
+        eq_effect_parameters::BandType::AllPass => proc_band.allpass(f0, bw, slope, fs),
+    }
+}
+
 pub struct EditorFilterData {
     pub params: Arc<BandParameters>,
 }
@@ -58,7 +80,8 @@ pub struct EditorFilterData {
 struct EQPlugin {
     params: Arc<EQEffectParameters>,
     editor: Option<EQPluginEditor>,
-    filter_bands: Vec<FilterbandStereo>,
+    filter_bands_left: Vec<FilterBand<f64>>,
+    filter_bands_right: Vec<FilterBand<f64>>,
     time: Arc<AtomicF64>,
     sample_rate: Arc<AtomicF64>,
     block_size: i64,
@@ -70,9 +93,13 @@ impl Default for EQPlugin {
         let time = Arc::new(AtomicF64::new(0.0));
         let sample_rate = Arc::new(AtomicF64::new(44100.0));
 
-        let filter_bands = (0..FILTER_COUNT)
-            .map(|_| FilterbandStereo::new(48000.0))
-            .collect::<Vec<FilterbandStereo>>();
+        let filter_bands_left = (0..FILTER_COUNT)
+            .map(|_| FilterBand::new(48000.0))
+            .collect::<Vec<FilterBand<f64>>>();
+
+        let filter_bands_right = (0..FILTER_COUNT)
+            .map(|_| FilterBand::new(48000.0))
+            .collect::<Vec<FilterBand<f64>>>();
 
         Self {
             params: params.clone(),
@@ -86,7 +113,8 @@ impl Default for EQPlugin {
                     sample_rate: sample_rate.clone(),
                 }),
             }),
-            filter_bands,
+            filter_bands_left,
+            filter_bands_right,
         }
     }
 }
@@ -154,6 +182,7 @@ impl Plugin for EQPlugin {
             println!("{}", vec![1.0][0]);
             self.time
                 .set(self.time.get() + (1.0 / self.sample_rate.get()) * self.block_size as f64);
+            let sample_rate = self.sample_rate.get();
 
             let (inputs, outputs) = buffer.split();
             let (inputs_left, inputs_right) = inputs.split_at(1);
@@ -164,14 +193,22 @@ impl Plugin for EQPlugin {
 
             for (input_pair, output_pair) in inputs_stereo.zip(outputs_stereo) {
                 for (i, band) in self.params.bands.iter().enumerate() {
-                    self.filter_bands[i].update(
+                    let f0 = band.freq.get() as f64;
+                    let gain = band.gain.get() as f64;
+                    let bw = band.bw.get() as f64;
+                    let slope = band.get_slope() as f64;
+                    let fs = sample_rate as f64;
+
+                    update_proc(
                         band.get_kind(),
-                        band.freq.get(),
-                        band.gain.get(),
-                        band.bw.get(),
-                        band.get_slope(),
-                        self.sample_rate.get(),
+                        &mut self.filter_bands_left[i],
+                        f0,
+                        gain,
+                        bw,
+                        slope,
+                        fs,
                     );
+                    self.filter_bands_right[i].mimic_band(&self.filter_bands_left[i])
                 }
 
                 let (input_l, input_r) = input_pair;
@@ -180,10 +217,9 @@ impl Plugin for EQPlugin {
                 let mut l = *input_l as f64;
                 let mut r = *input_r as f64;
 
-                for i in 0..self.filter_bands.len() {
-                    let [l_n, r_n] = self.filter_bands[i].process(l, r);
-                    l = l_n;
-                    r = r_n;
+                for i in 0..self.filter_bands_left.len() {
+                    l = (self.filter_bands_left[i].process)(&mut self.filter_bands_left[i], l);
+                    r = (self.filter_bands_right[i].process)(&mut self.filter_bands_right[i], r);
                 }
 
                 *output_l = l as f32;
