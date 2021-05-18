@@ -54,6 +54,22 @@ impl BandParameters {
     pub fn get_slope(&self) -> f64 {
         self.slope.get() as u8 as f64
     }
+
+    pub fn dsp_update(&self) -> bool {
+        if self.kind.dsp_update() {
+            true
+        } else if self.freq.dsp_update() {
+            true
+        } else if self.gain.dsp_update() {
+            true
+        } else if self.bw.dsp_update() {
+            true
+        } else if self.slope.dsp_update() {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 pub struct EQEffectParameters {

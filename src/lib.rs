@@ -34,6 +34,7 @@ mod eq_effect_parameters;
 mod parameter;
 pub mod units;
 
+mod atomic_bool;
 mod atomic_f64;
 
 use audio_filters::filter_band::FilterBand;
@@ -193,6 +194,9 @@ impl Plugin for EQPlugin {
 
             for (input_pair, output_pair) in inputs_stereo.zip(outputs_stereo) {
                 for (i, band) in self.params.bands.iter().enumerate() {
+                    if !band.dsp_update() {
+                        continue;
+                    }
                     let f0 = band.freq.get() as f64;
                     let gain = band.gain.get() as f64;
                     let bw = band.bw.get() as f64;

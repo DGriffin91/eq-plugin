@@ -1,4 +1,4 @@
-use crate::{atomic_f64::AtomicF64, units::Units};
+use crate::{atomic_bool::AtomicBool, atomic_f64::AtomicF64, units::Units};
 
 pub struct Parameter {
     name: String,
@@ -10,6 +10,7 @@ pub struct Parameter {
     display_func: fn(f64) -> String,
     pub transform_func: fn(f64) -> f64,
     pub inv_transform_func: fn(f64) -> f64,
+    need_to_update_dsp: AtomicBool,
 }
 
 impl Parameter {
@@ -32,6 +33,7 @@ impl Parameter {
             display_func,
             transform_func,
             inv_transform_func,
+            need_to_update_dsp: AtomicBool::new(true),
         }
     }
 
@@ -44,6 +46,7 @@ impl Parameter {
     }
 
     pub fn set_normalized(&self, x: f64) {
+        self.need_to_update_dsp.set(true);
         let x = x.max(0.0).min(1.0);
         self.normalized_value.set(x);
         self.value
@@ -55,6 +58,7 @@ impl Parameter {
     }
 
     pub fn set(&self, x: f64) {
+        self.need_to_update_dsp.set(true);
         let x = x.max(self.min).min(self.max);
         self.value.set(x);
         self.normalized_value
@@ -67,5 +71,11 @@ impl Parameter {
 
     pub fn get_name(&self) -> String {
         self.name.clone()
+    }
+
+    pub fn dsp_update(&self) -> bool {
+        let need_to_update = self.need_to_update_dsp.get();
+        self.need_to_update_dsp.set(false);
+        need_to_update
     }
 }
