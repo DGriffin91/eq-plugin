@@ -43,9 +43,13 @@ fn input_float(ui: &Ui, parameter: &Parameter, i: usize) {
         //parameter.set(*knob.p_value)
         parameter.set(val)
     }
+
     let cursor2 = ui.cursor_pos();
     ui.set_cursor_pos(cursor);
-    ui.text(&ImString::new(format!("{}", parameter.get_display())));
+
+    if !ui.is_item_active() || ui.is_mouse_down(MouseButton::Left) {
+        ui.text(&ImString::new(format!("{}", parameter.get_display())));
+    }
     ui.set_cursor_pos(cursor2);
 }
 
