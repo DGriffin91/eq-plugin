@@ -20,6 +20,7 @@ Ideas:
 */
 
 use assert_no_alloc::*;
+use wide::f64x4;
 
 #[cfg(debug_assertions)] // required when disable_release is set (default)
 #[global_allocator]
@@ -37,7 +38,9 @@ pub mod units;
 mod atomic_bool;
 mod atomic_f64;
 
-use audio_filters::filter_band::{FilterBand, FilterBandCoefficients};
+use audio_filters::filter_band::{
+    FilterBandCoefficients, WideF64FilterBand, WideF64FilterBandCoefficients,
+};
 
 use editor::{EQPluginEditor, EditorState};
 use eq_effect_parameters::{BandParameters, BandType, EQEffectParameters};
@@ -80,8 +83,7 @@ pub struct EditorFilterData {
 struct EQPlugin {
     params: Arc<EQEffectParameters>,
     editor: Option<EQPluginEditor>,
-    filter_bands_left: Vec<FilterBand<f64>>,
-    filter_bands_right: Vec<FilterBand<f64>>,
+    filter_bands: Vec<WideF64FilterBand>,
     time: Arc<AtomicF64>,
     sample_rate: Arc<AtomicF64>,
     block_size: i64,
@@ -94,14 +96,11 @@ impl Default for EQPlugin {
         let sample_rate = Arc::new(AtomicF64::new(48000.0));
 
         let coeffs = FilterBandCoefficients::bell(1000.0, 0.0, 1.0, 48000.0);
+        let coeffs = WideF64FilterBandCoefficients::from(coeffs);
 
-        let filter_bands_left = (0..FILTER_COUNT)
-            .map(|_| FilterBand::from(&coeffs))
-            .collect::<Vec<FilterBand<f64>>>();
-
-        let filter_bands_right = (0..FILTER_COUNT)
-            .map(|_| FilterBand::from(&coeffs))
-            .collect::<Vec<FilterBand<f64>>>();
+        let filter_bands = (0..FILTER_COUNT)
+            .map(|_| WideF64FilterBand::from(&coeffs))
+            .collect::<Vec<WideF64FilterBand>>();
 
         Self {
             params: params.clone(),
@@ -115,8 +114,7 @@ impl Default for EQPlugin {
                     sample_rate: sample_rate.clone(),
                 }),
             }),
-            filter_bands_left,
-            filter_bands_right,
+            filter_bands,
         }
     }
 }
@@ -205,24 +203,21 @@ impl Plugin for EQPlugin {
                     let fs = sample_rate as f64;
 
                     let coeffs = get_coefficients(band.get_kind(), f0, gain, bw, slope, fs);
-
-                    self.filter_bands_left[i].update(&coeffs);
-                    self.filter_bands_right[i].update(&coeffs);
+                    let coeffs = WideF64FilterBandCoefficients::from(coeffs);
+                    self.filter_bands[i].update(&coeffs);
                 }
 
                 let (input_l, input_r) = input_pair;
                 let (output_l, output_r) = output_pair;
 
-                let mut l = *input_l as f64;
-                let mut r = *input_r as f64;
+                let mut audio = f64x4::from([*input_l as f64, *input_r as f64, 0.0, 0.0]);
 
-                for i in 0..self.filter_bands_left.len() {
-                    l = (self.filter_bands_left[i].process)(&mut self.filter_bands_left[i], l);
-                    r = (self.filter_bands_right[i].process)(&mut self.filter_bands_right[i], r);
+                for i in 0..self.filter_bands.len() {
+                    audio = (self.filter_bands[i].process)(&mut self.filter_bands[i], audio).into();
                 }
-
-                *output_l = l as f32;
-                *output_r = r as f32;
+                let audio: [f64; 4] = audio.into();
+                *output_l = audio[0] as f32;
+                *output_r = audio[1] as f32;
             }
         });
     }
