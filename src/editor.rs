@@ -1,8 +1,8 @@
-use audio_filters::{filter_band::FilterBand, units::Units, units::ZSample};
+use audio_filters::{units::Units, units::ZSample};
 use imgui::*;
 
 use crate::{
-    atomic_f64::AtomicF64, editor_elements::*, eq_effect_parameters::BandType, update_proc,
+    atomic_f64::AtomicF64, editor_elements::*, eq_effect_parameters::BandType, get_coefficients,
 };
 
 use crate::units::map_to_freq;
@@ -140,7 +140,6 @@ impl Editor for EQPluginEditor {
                         let z = ZSample::<f32>::new(f_hz as f32, sample_rate as f32);
                         for band in state.params.bands.iter() {
                             //TODO reuse coeffs from DSP
-                            let mut new_band = FilterBand::new(sample_rate as f32);
 
                             let f0 = band.freq.get() as f32;
                             let gain = band.gain.get() as f32;
@@ -148,11 +147,11 @@ impl Editor for EQPluginEditor {
                             let slope = band.get_slope() as f32;
                             let fs = sample_rate as f32;
 
-                            update_proc(band.get_kind(), &mut new_band, f0, gain, bw, slope, fs);
+                            let coeffs = get_coefficients(band.get_kind(), f0, gain, bw, slope, fs);
 
                             //ui.text(&ImString::new(format!("{}", band.gain.get())));
 
-                            let y = new_band.get_bode_sample(z).norm();
+                            let y = coeffs.get_bode_sample(z).norm();
                             *graph_y += -(y.lin_to_db()) as f32;
                             //let y = -new_band.get_bode_sample(z).arg().to_degrees() * 0.2;
                             //*graph_y += y as f32;

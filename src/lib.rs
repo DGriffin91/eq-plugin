@@ -37,7 +37,7 @@ pub mod units;
 mod atomic_bool;
 mod atomic_f64;
 
-use audio_filters::filter_band::FilterBand;
+use audio_filters::filter_band::{FilterBand, FilterBandCoefficients};
 
 use editor::{EQPluginEditor, EditorState};
 use eq_effect_parameters::{BandParameters, BandType, EQEffectParameters};
@@ -53,24 +53,23 @@ use atomic_f64::AtomicF64;
 const FILTER_COUNT: usize = 4;
 const FILTER_POLE_COUNT: usize = 16;
 
-fn update_proc<T: audio_filters::units::FP>(
+fn get_coefficients<T: audio_filters::units::FP>(
     kind: BandType,
-    proc_band: &mut FilterBand<T>,
     f0: T,
     gain: T,
     bw: T,
     slope: T,
     fs: T,
-) {
+) -> FilterBandCoefficients<T> {
     match kind {
-        eq_effect_parameters::BandType::Bell => proc_band.bell(f0, gain, bw, fs),
-        eq_effect_parameters::BandType::LowPass => proc_band.lowpass(f0, bw, slope, fs),
-        eq_effect_parameters::BandType::HighPass => proc_band.highpass(f0, bw, slope, fs),
-        eq_effect_parameters::BandType::LowShelf => proc_band.lowshelf(f0, gain, bw, slope, fs),
-        eq_effect_parameters::BandType::HighShelf => proc_band.highshelf(f0, gain, bw, slope, fs),
-        eq_effect_parameters::BandType::Notch => proc_band.notch(f0, gain, bw, fs),
-        eq_effect_parameters::BandType::BandPass => proc_band.bandpass(f0, gain, bw, fs),
-        eq_effect_parameters::BandType::AllPass => proc_band.allpass(f0, bw, slope, fs),
+        BandType::Bell => FilterBandCoefficients::bell(f0, gain, bw, fs),
+        BandType::LowPass => FilterBandCoefficients::lowpass(f0, bw, slope, fs),
+        BandType::HighPass => FilterBandCoefficients::highpass(f0, bw, slope, fs),
+        BandType::LowShelf => FilterBandCoefficients::lowshelf(f0, gain, bw, slope, fs),
+        BandType::HighShelf => FilterBandCoefficients::highshelf(f0, gain, bw, slope, fs),
+        BandType::Notch => FilterBandCoefficients::notch(f0, gain, bw, fs),
+        BandType::BandPass => FilterBandCoefficients::bandpass(f0, gain, bw, fs),
+        BandType::AllPass => FilterBandCoefficients::allpass(f0, bw, slope, fs),
     }
 }
 
@@ -92,14 +91,16 @@ impl Default for EQPlugin {
     fn default() -> Self {
         let params = Arc::new(EQEffectParameters::default());
         let time = Arc::new(AtomicF64::new(0.0));
-        let sample_rate = Arc::new(AtomicF64::new(44100.0));
+        let sample_rate = Arc::new(AtomicF64::new(48000.0));
+
+        let coeffs = FilterBandCoefficients::bell(1000.0, 0.0, 1.0, 48000.0);
 
         let filter_bands_left = (0..FILTER_COUNT)
-            .map(|_| FilterBand::new(48000.0))
+            .map(|_| FilterBand::from(&coeffs))
             .collect::<Vec<FilterBand<f64>>>();
 
         let filter_bands_right = (0..FILTER_COUNT)
-            .map(|_| FilterBand::new(48000.0))
+            .map(|_| FilterBand::from(&coeffs))
             .collect::<Vec<FilterBand<f64>>>();
 
         Self {
@@ -203,16 +204,10 @@ impl Plugin for EQPlugin {
                     let slope = band.get_slope() as f64;
                     let fs = sample_rate as f64;
 
-                    update_proc(
-                        band.get_kind(),
-                        &mut self.filter_bands_left[i],
-                        f0,
-                        gain,
-                        bw,
-                        slope,
-                        fs,
-                    );
-                    self.filter_bands_right[i].mimic_band(&self.filter_bands_left[i])
+                    let coeffs = get_coefficients(band.get_kind(), f0, gain, bw, slope, fs);
+
+                    self.filter_bands_left[i].update(&coeffs);
+                    self.filter_bands_right[i].update(&coeffs);
                 }
 
                 let (input_l, input_r) = input_pair;
