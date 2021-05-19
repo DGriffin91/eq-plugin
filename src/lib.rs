@@ -38,9 +38,9 @@ pub mod units;
 mod atomic_bool;
 mod atomic_f64;
 
-use audio_filters::filter_band::{
-    FilterBandCoefficients, WideF64FilterBand, WideF64FilterBandCoefficients,
-};
+use audio_filters::filter_band::FilterBandCoefficients;
+
+use audio_filters::filter_band_wide::{WideF64FilterBand, WideF64FilterBandCoefficients};
 
 use editor::{EQPluginEditor, EditorState};
 use eq_effect_parameters::{BandParameters, BandType, EQEffectParameters};
