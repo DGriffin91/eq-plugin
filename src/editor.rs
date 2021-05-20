@@ -1,8 +1,11 @@
-use audio_filters::{units::Units, units::ZSample};
+use audio_filters::{linkwitz_riley::LinkwitzRileyCoefficients, units::Units, units::ZSample};
 use imgui::*;
 
 use crate::{
-    atomic_f64::AtomicF64, editor_elements::*, eq_effect_parameters::BandType, get_coefficients,
+    atomic_f64::AtomicF64,
+    editor_elements::*,
+    eq_effect_parameters::{BandKind, BandMode},
+    get_coefficients,
 };
 
 use crate::units::map_to_freq;
@@ -51,6 +54,37 @@ fn input_float(ui: &Ui, parameter: &Parameter, i: usize) {
         ui.text(&ImString::new(format!("{}", parameter.get_display())));
     }
     ui.set_cursor_pos(cursor2);
+}
+
+fn popup_select<F: Fn(usize) -> bool>(
+    ui: &Ui,
+    parameter: &Parameter,
+    i: usize,
+    button_fn: F,
+    qty_of_options: usize,
+) {
+    let popup_str = &ImString::new(format!("band_{}_popup{}", parameter.get_name(), i));
+    if ui.button(
+        &ImString::new(format!(
+            "{}##_popupbtn{}_{}",
+            parameter.get_display(),
+            i,
+            parameter.get_name()
+        )),
+        [0.0, 0.0],
+    ) {
+        ui.open_popup(popup_str);
+    }
+    ui.popup(popup_str, || {
+        //let kind = parameter.get() as i32;
+        for j in 0..qty_of_options {
+            if button_fn(j) {
+                parameter.set(j as f64);
+                ui.close_current_popup();
+                break;
+            }
+        }
+    });
 }
 
 pub struct EditorState {
@@ -135,23 +169,36 @@ impl Editor for EQPluginEditor {
 
                     let mut graph_y_values = vec![0.0f32; graph_width as usize];
 
+                    let mut bandcoeffs = Vec::new();
+
+                    for band in state.params.bands.iter() {
+                        //TODO reuse coeffs from DSP
+
+                        let f0 = band.freq.get() as f32;
+                        let mut gain = band.gain.get() as f32;
+                        let bw = band.bw.get() as f32;
+                        let slope = band.get_slope() as f32;
+                        let mode = band.get_mode() as f32;
+                        let fs = sample_rate as f32;
+                        let slope = if mode == 1.0 {
+                            gain *= 0.5;
+                            (slope / 2.0).floor().max(2.0)
+                        } else {
+                            slope
+                        };
+                        let coeffs = get_coefficients(band.get_kind(), f0, gain, bw, slope, fs);
+                        bandcoeffs.push(LinkwitzRileyCoefficients::from(coeffs));
+                    }
+
                     for (i, graph_y) in graph_y_values.iter_mut().enumerate() {
                         let f_hz = map_to_freq((i as f32) / graph_width) as f64;
                         let z = ZSample::<f32>::new(f_hz as f32, sample_rate as f32);
-                        for band in state.params.bands.iter() {
-                            //TODO reuse coeffs from DSP
-
-                            let f0 = band.freq.get() as f32;
-                            let gain = band.gain.get() as f32;
-                            let bw = band.bw.get() as f32;
-                            let slope = band.get_slope() as f32;
-                            let fs = sample_rate as f32;
-
-                            let coeffs = get_coefficients(band.get_kind(), f0, gain, bw, slope, fs);
-
-                            //ui.text(&ImString::new(format!("{}", band.gain.get())));
-
-                            let y = coeffs.get_bode_sample(z).norm();
+                        for (band_n, coeffs) in bandcoeffs.iter().enumerate() {
+                            let y = if state.params.bands[band_n].get_mode() == 0.0 {
+                                coeffs.coeffs.get_bode_sample(z).norm()
+                            } else {
+                                coeffs.get_bode_sample(z).norm()
+                            };
                             *graph_y += -(y.lin_to_db()) as f32;
                             //let y = -new_band.get_bode_sample(z).arg().to_degrees() * 0.2;
                             //*graph_y += y as f32;
@@ -167,32 +214,27 @@ impl Editor for EQPluginEditor {
                         graph_width as usize,
                         |i| graph_y_values[i],
                     );
-
+                    //ui.radio_button_bool(
+                    //    &ImString::new(format!("{}", BandKind::from_u8(j as u8).to_string())),
+                    //    kind == j,
+                    //)
                     ui.columns(4, im_str!("cols"), false);
                     for (i, band) in params.bands.iter().enumerate() {
-                        let popup_str = &ImString::new(format!("band_kind_popup##{}", i));
-                        if ui.button(
-                            &ImString::new(format!("{}##_popupbtn{}", band.kind.get_display(), i)),
-                            [0.0, 0.0],
-                        ) {
-                            ui.open_popup(popup_str);
-                        }
-                        ui.popup(popup_str, || {
-                            let kind = band.kind.get() as i32;
-                            for j in 1..9 {
-                                if ui.radio_button_bool(
+                        popup_select(
+                            ui,
+                            &band.kind,
+                            i,
+                            |j| {
+                                ui.radio_button_bool(
                                     &ImString::new(format!(
                                         "{}",
-                                        BandType::from_u8(j as u8).to_string()
+                                        BandKind::from_u8(j as u8).to_string()
                                     )),
-                                    kind == j,
-                                ) {
-                                    band.kind.set(j as f64);
-                                    ui.close_current_popup();
-                                    break;
-                                }
-                            }
-                        });
+                                    band.get_kind() as usize == j,
+                                )
+                            },
+                            8,
+                        );
                         //input_float(&ui, &band.kind, i);
                         input_float(&ui, &band.freq, i);
                         input_float(&ui, &band.gain, i);
@@ -218,6 +260,21 @@ impl Editor for EQPluginEditor {
                                 }
                             }
                         });
+                        popup_select(
+                            ui,
+                            &band.mode,
+                            i,
+                            |j| {
+                                ui.radio_button_bool(
+                                    &ImString::new(format!(
+                                        "{}",
+                                        BandMode::from_u8(j as u8).to_string()
+                                    )),
+                                    band.get_mode() as usize == j,
+                                )
+                            },
+                            2,
+                        );
                         ui.next_column();
                     }
                 });

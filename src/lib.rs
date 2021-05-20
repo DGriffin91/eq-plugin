@@ -40,10 +40,13 @@ mod atomic_f64;
 
 use audio_filters::filter_band::FilterBandCoefficients;
 
-use audio_filters::filter_band_wide::{WideF64FilterBand, WideF64FilterBandCoefficients};
+use audio_filters::filter_band_wide::WideF64FilterBandCoefficients;
+use audio_filters::linkwitz_riley_wide::{
+    WideF64LinkwitzRileyBand, WideF64LinkwitzRileyCoefficients,
+};
 
 use editor::{EQPluginEditor, EditorState};
-use eq_effect_parameters::{BandParameters, BandType, EQEffectParameters};
+use eq_effect_parameters::{BandKind, BandParameters, EQEffectParameters};
 
 use vst::buffer::AudioBuffer;
 use vst::editor::Editor;
@@ -57,7 +60,7 @@ const FILTER_COUNT: usize = 4;
 const FILTER_POLE_COUNT: usize = 16;
 
 fn get_coefficients<T: audio_filters::units::FP>(
-    kind: BandType,
+    kind: BandKind,
     f0: T,
     gain: T,
     bw: T,
@@ -65,14 +68,14 @@ fn get_coefficients<T: audio_filters::units::FP>(
     fs: T,
 ) -> FilterBandCoefficients<T> {
     match kind {
-        BandType::Bell => FilterBandCoefficients::bell(f0, gain, bw, fs),
-        BandType::LowPass => FilterBandCoefficients::lowpass(f0, bw, slope, fs),
-        BandType::HighPass => FilterBandCoefficients::highpass(f0, bw, slope, fs),
-        BandType::LowShelf => FilterBandCoefficients::lowshelf(f0, gain, bw, slope, fs),
-        BandType::HighShelf => FilterBandCoefficients::highshelf(f0, gain, bw, slope, fs),
-        BandType::Notch => FilterBandCoefficients::notch(f0, gain, bw, fs),
-        BandType::BandPass => FilterBandCoefficients::bandpass(f0, gain, bw, fs),
-        BandType::AllPass => FilterBandCoefficients::allpass(f0, bw, slope, fs),
+        BandKind::Bell => FilterBandCoefficients::bell(f0, gain, bw, fs),
+        BandKind::LowPass => FilterBandCoefficients::lowpass(f0, bw, slope, fs),
+        BandKind::HighPass => FilterBandCoefficients::highpass(f0, bw, slope, fs),
+        BandKind::LowShelf => FilterBandCoefficients::lowshelf(f0, gain, bw, slope, fs),
+        BandKind::HighShelf => FilterBandCoefficients::highshelf(f0, gain, bw, slope, fs),
+        BandKind::Notch => FilterBandCoefficients::notch(f0, gain, bw, fs),
+        BandKind::BandPass => FilterBandCoefficients::bandpass(f0, gain, bw, fs),
+        BandKind::AllPass => FilterBandCoefficients::allpass(f0, bw, slope, fs),
     }
 }
 
@@ -83,7 +86,7 @@ pub struct EditorFilterData {
 struct EQPlugin {
     params: Arc<EQEffectParameters>,
     editor: Option<EQPluginEditor>,
-    filter_bands: Vec<WideF64FilterBand>,
+    filter_bands: Vec<WideF64LinkwitzRileyBand>,
     time: Arc<AtomicF64>,
     sample_rate: Arc<AtomicF64>,
     block_size: i64,
@@ -97,10 +100,11 @@ impl Default for EQPlugin {
 
         let coeffs = FilterBandCoefficients::bell(1000.0, 0.0, 1.0, 48000.0);
         let coeffs = WideF64FilterBandCoefficients::from(coeffs);
+        let coeffs = WideF64LinkwitzRileyCoefficients::from(coeffs);
 
         let filter_bands = (0..FILTER_COUNT)
-            .map(|_| WideF64FilterBand::from(&coeffs))
-            .collect::<Vec<WideF64FilterBand>>();
+            .map(|_| WideF64LinkwitzRileyBand::from(&coeffs))
+            .collect::<Vec<WideF64LinkwitzRileyBand>>();
 
         Self {
             params: params.clone(),
@@ -197,13 +201,19 @@ impl Plugin for EQPlugin {
                         continue;
                     }
                     let f0 = band.freq.get() as f64;
-                    let gain = band.gain.get() as f64;
+                    let mut gain = band.gain.get() as f64;
                     let bw = band.bw.get() as f64;
                     let slope = band.get_slope() as f64;
+                    //let mode = band.get_mode() as f64;
                     let fs = sample_rate as f64;
+
+                    if self.params.bands[i].get_mode() == 1.0 {
+                        gain *= 0.5;
+                    }
 
                     let coeffs = get_coefficients(band.get_kind(), f0, gain, bw, slope, fs);
                     let coeffs = WideF64FilterBandCoefficients::from(coeffs);
+                    let coeffs = WideF64LinkwitzRileyCoefficients::from(coeffs);
                     self.filter_bands[i].update(&coeffs);
                 }
 
@@ -213,7 +223,16 @@ impl Plugin for EQPlugin {
                 let mut audio = f64x4::from([*input_l as f64, *input_r as f64, 0.0, 0.0]);
 
                 for i in 0..self.filter_bands.len() {
-                    audio = (self.filter_bands[i].process)(&mut self.filter_bands[i], audio).into();
+                    if self.params.bands[i].get_mode() == 0.0 {
+                        audio = (self.filter_bands[i].filter1.process)(
+                            &mut self.filter_bands[i].filter1,
+                            audio,
+                        )
+                        .into();
+                    } else {
+                        audio =
+                            (self.filter_bands[i].process)(&mut self.filter_bands[i], audio).into();
+                    }
                 }
                 let audio: [f64; 4] = audio.into();
                 *output_l = audio[0] as f32;

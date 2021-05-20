@@ -5,7 +5,7 @@ use super::parameter::Parameter;
 use core::fmt;
 
 #[derive(PartialEq, Debug, Clone, Copy)]
-pub enum BandType {
+pub enum BandKind {
     Bell,
     LowPass,
     HighPass,
@@ -16,23 +16,45 @@ pub enum BandType {
     AllPass,
 }
 
-impl BandType {
-    pub fn from_u8(value: u8) -> BandType {
+impl BandKind {
+    pub fn from_u8(value: u8) -> BandKind {
         match value {
-            1 => BandType::Bell,
-            2 => BandType::LowPass,
-            3 => BandType::HighPass,
-            4 => BandType::LowShelf,
-            5 => BandType::HighShelf,
-            6 => BandType::Notch,
-            7 => BandType::BandPass,
-            8 => BandType::AllPass,
-            _ => BandType::LowPass,
+            0 => BandKind::Bell,
+            1 => BandKind::LowPass,
+            2 => BandKind::HighPass,
+            3 => BandKind::LowShelf,
+            4 => BandKind::HighShelf,
+            5 => BandKind::Notch,
+            6 => BandKind::BandPass,
+            7 => BandKind::AllPass,
+            _ => BandKind::LowPass,
         }
     }
 }
 
-impl fmt::Display for BandType {
+impl fmt::Display for BandKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum BandMode {
+    Butterworth,
+    LinkwitzRiley,
+}
+
+impl BandMode {
+    pub fn from_u8(value: u8) -> BandMode {
+        match value {
+            0 => BandMode::Butterworth,
+            1 => BandMode::LinkwitzRiley,
+            _ => BandMode::Butterworth,
+        }
+    }
+}
+
+impl fmt::Display for BandMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -44,15 +66,20 @@ pub struct BandParameters {
     pub gain: Parameter,
     pub bw: Parameter,
     pub slope: Parameter,
+    pub mode: Parameter,
 }
 
 impl BandParameters {
-    pub fn get_kind(&self) -> BandType {
-        return BandType::from_u8(self.kind.get() as u8);
+    pub fn get_kind(&self) -> BandKind {
+        return BandKind::from_u8(self.kind.get() as u8);
     }
 
     pub fn get_slope(&self) -> f64 {
-        self.slope.get() as u8 as f64
+        self.slope.get().floor()
+    }
+
+    pub fn get_mode(&self) -> f64 {
+        self.mode.get().floor()
     }
 
     pub fn dsp_update(&self) -> bool {
@@ -87,21 +114,25 @@ impl Index<usize> for EQEffectParameters {
             2 => &self.bands[0].gain,
             3 => &self.bands[0].bw,
             4 => &self.bands[0].slope,
-            5 => &self.bands[1].kind,
-            6 => &self.bands[1].freq,
-            7 => &self.bands[1].gain,
-            8 => &self.bands[1].bw,
-            9 => &self.bands[1].slope,
-            10 => &self.bands[2].kind,
-            11 => &self.bands[2].freq,
-            12 => &self.bands[2].gain,
-            13 => &self.bands[2].bw,
-            14 => &self.bands[2].slope,
-            15 => &self.bands[3].kind,
-            16 => &self.bands[3].freq,
-            17 => &self.bands[3].gain,
-            18 => &self.bands[3].bw,
-            19 => &self.bands[3].slope,
+            5 => &self.bands[0].mode,
+            6 => &self.bands[1].kind,
+            7 => &self.bands[1].freq,
+            8 => &self.bands[1].gain,
+            9 => &self.bands[1].bw,
+            10 => &self.bands[1].slope,
+            11 => &self.bands[0].mode,
+            12 => &self.bands[2].kind,
+            13 => &self.bands[2].freq,
+            14 => &self.bands[2].gain,
+            15 => &self.bands[2].bw,
+            16 => &self.bands[2].slope,
+            17 => &self.bands[0].mode,
+            18 => &self.bands[3].kind,
+            19 => &self.bands[3].freq,
+            20 => &self.bands[3].gain,
+            21 => &self.bands[3].bw,
+            22 => &self.bands[3].slope,
+            23 => &self.bands[0].mode,
             _ => &self.bands[3].kind,
         }
     }
@@ -117,10 +148,10 @@ fn new_band_pram_set(n: usize) -> BandParameters {
     BandParameters {
         kind: Parameter::new(
             &format!("Band {} Type", n),
-            1.0,
-            1.0,
+            0.0,
+            0.0,
             10.0,
-            |x| BandType::from_u8(x as u8).to_string(),
+            |x| BandKind::from_u8(x as u8).to_string(),
             |x| x,
             |x| x,
         ),
@@ -157,6 +188,15 @@ fn new_band_pram_set(n: usize) -> BandParameters {
             1.0,
             FILTER_POLE_COUNT as f64,
             |x| format!("Slope {:.2}", x),
+            |x| x,
+            |x| x,
+        ),
+        mode: Parameter::new(
+            &format!("Band {} mode", n),
+            0.0,
+            0.0,
+            2.0,
+            |x| BandMode::from_u8(x as u8).to_string(),
             |x| x,
             |x| x,
         ),
