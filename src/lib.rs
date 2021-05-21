@@ -40,10 +40,8 @@ mod atomic_f64;
 
 use audio_filters::filter_band::FilterBandCoefficients;
 
-use audio_filters::filter_band_wide::WideF64FilterBandCoefficients;
-use audio_filters::linkwitz_riley_wide::{
-    WideF64LinkwitzRileyBand, WideF64LinkwitzRileyCoefficients,
-};
+use audio_filters::filter_band_wide::WideFilterBandCoefficients;
+use audio_filters::linkwitz_riley_wide::{WideLinkwitzRileyBand, WideLinkwitzRileyCoefficients};
 
 use editor::{EQPluginEditor, EditorState};
 use eq_effect_parameters::{BandKind, BandParameters, EQEffectParameters};
@@ -86,7 +84,7 @@ pub struct EditorFilterData {
 struct EQPlugin {
     params: Arc<EQEffectParameters>,
     editor: Option<EQPluginEditor>,
-    filter_bands: Vec<WideF64LinkwitzRileyBand>,
+    filter_bands: Vec<WideLinkwitzRileyBand<f64x4>>,
     time: Arc<AtomicF64>,
     sample_rate: Arc<AtomicF64>,
     block_size: i64,
@@ -99,12 +97,12 @@ impl Default for EQPlugin {
         let sample_rate = Arc::new(AtomicF64::new(48000.0));
 
         let coeffs = FilterBandCoefficients::bell(1000.0, 0.0, 1.0, 48000.0);
-        let coeffs = WideF64FilterBandCoefficients::from(coeffs);
-        let coeffs = WideF64LinkwitzRileyCoefficients::from(coeffs);
+        let coeffs = WideFilterBandCoefficients::from(coeffs);
+        let coeffs = WideLinkwitzRileyCoefficients::from(coeffs);
 
         let filter_bands = (0..FILTER_COUNT)
-            .map(|_| WideF64LinkwitzRileyBand::from(&coeffs))
-            .collect::<Vec<WideF64LinkwitzRileyBand>>();
+            .map(|_| WideLinkwitzRileyBand::from(&coeffs))
+            .collect::<Vec<WideLinkwitzRileyBand<f64x4>>>();
 
         Self {
             params: params.clone(),
@@ -212,8 +210,8 @@ impl Plugin for EQPlugin {
                     }
 
                     let coeffs = get_coefficients(band.get_kind(), f0, gain, bw, slope, fs);
-                    let coeffs = WideF64FilterBandCoefficients::from(coeffs);
-                    let coeffs = WideF64LinkwitzRileyCoefficients::from(coeffs);
+                    let coeffs = WideFilterBandCoefficients::from(coeffs);
+                    let coeffs = WideLinkwitzRileyCoefficients::from(coeffs);
                     self.filter_bands[i].update(&coeffs);
                 }
 
