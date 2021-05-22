@@ -93,6 +93,8 @@ impl BandParameters {
             true
         } else if self.slope.dsp_update() {
             true
+        } else if self.mode.dsp_update() {
+            true
         } else {
             false
         }
