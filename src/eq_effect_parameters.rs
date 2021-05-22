@@ -140,7 +140,7 @@ impl Index<usize> for EQEffectParameters {
 
 impl EQEffectParameters {
     pub fn len(&self) -> usize {
-        16
+        23
     }
 }
 
